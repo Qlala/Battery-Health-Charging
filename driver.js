@@ -90,6 +90,8 @@ function isBatteryCareLimitSupported() {
  * @returns {number} Return a integer.
  */
 function getCurrentEndLimitValue() {
+    if( isBatteryCareLimitSupported())
+        return readFileInt(BATTERY_CARE_LIMIT);
     return readFileInt(END_THRESHOLD_DEVICE_PATH);
 }
 
@@ -101,6 +103,7 @@ function getCurrentEndLimitValue() {
 function getCurrentStartLimitValue() {
     return readFileInt(START_THRESHOLD_DEVICE_PATH);
 }
+
 function getBatteryCareLimitValue() {
     return readFileInt(BATTERY_CARE_LIMIT);
 }
