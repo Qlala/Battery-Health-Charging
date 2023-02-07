@@ -3,8 +3,10 @@ const {Gio, GLib} = imports.gi;
 const ExtensionUtils = imports.misc.extensionUtils;
 const Me = ExtensionUtils.getCurrentExtension();
 const Config = imports.misc.config;
+const BATTERY_DEVICE='/sys/class/power_supply/CMB0/';
 
 const END_THRESHOLD_DEVICE_PATH = '/sys/class/power_supply/BAT0/charge_control_end_threshold';
+const BATTERY_CARE_LIMIT = '/sys/devices/platform/lg-laptop/battery_care_limit';
 const START_THRESHOLD_DEVICE_PATH = '/sys/class/power_supply/BAT0/charge_control_start_threshold';
 
 
@@ -69,6 +71,18 @@ function isChargeStartThresholdSupported() {
 
     return false;
 }
+function isChargeEndThresholdSupported() {
+    if (fileExists(END_THRESHOLD_DEVICE_PATH))
+        return true;
+
+    return false;
+}
+function isBatteryCareLimitSupported() {
+    if (fileExists(BATTERY_CARE_LIMIT))
+        return true;
+
+    return false;
+}
 
 /**
  * Read value from charge_control_end_threshold
@@ -87,6 +101,9 @@ function getCurrentEndLimitValue() {
 function getCurrentStartLimitValue() {
     return readFileInt(START_THRESHOLD_DEVICE_PATH);
 }
+function getBatteryCareLimitValue() {
+    return readFileInt(BATTERY_CARE_LIMIT);
+}
 
 /**
  * Execute bash command asynchronously
@@ -100,6 +117,20 @@ function spawnCommandLine(command) {
         logError(`Spawning command failed: ${command}`, e);
     }
 }
+/*****
+ * 
+ * get Suported charge level
+ * @param {integer} value
+ */
+function isChargeLevelSupported(value) {
+    if(isBatteryCareLimitSupported()){
+        return value==80 || value==100;
+    }else if(isChargeEndThresholdSupported()){
+        return value==80 || value==100||value==60;
+    }
+}
+
+
 
 /**
  * Set limit in sysfs
@@ -109,12 +140,17 @@ function spawnCommandLine(command) {
  * @param chargeStartThresholdSupported
  */
 function setLimit(endValue, chargeStartThresholdSupported) {
-    let chargeEndThresholdCmd = `bash -c "echo ${endValue} > ${END_THRESHOLD_DEVICE_PATH}\n"`;
-    spawnCommandLine(chargeEndThresholdCmd);
-    if (chargeStartThresholdSupported) {
-        let startValue = parseInt(endValue) - 2;
-        let chargeStartThresholdCmd = `bash -c "echo ${startValue} > ${START_THRESHOLD_DEVICE_PATH}\n"`;
-        spawnCommandLine(chargeStartThresholdCmd);
+    if (isChargeEndThresholdSupported()) {
+        let chargeEndThresholdCmd = `bash -c "echo ${endValue} > ${END_THRESHOLD_DEVICE_PATH}\n"`;
+        spawnCommandLine(chargeEndThresholdCmd);
+        if (chargeStartThresholdSupported) {
+            let startValue = parseInt(endValue) - 2;
+            let chargeStartThresholdCmd = `bash -c "echo ${startValue} > ${START_THRESHOLD_DEVICE_PATH}\n"`;
+            spawnCommandLine(chargeStartThresholdCmd);
+        }
+    }else if( isBatteryCareLimitSupported()){
+        let batteryCareLimitCmd = `bash -c "echo ${endValue} > ${BATTERY_CARE_LIMIT}\n"`;
+        spawnCommandLine(batteryCareLimitCmd);
     }
 }
 
@@ -136,6 +172,14 @@ function isSupported() {
 function checkAuthRequired() {
     try {
         const f = Gio.File.new_for_path(END_THRESHOLD_DEVICE_PATH);
+        const info = f.query_info('access::*', Gio.FileQueryInfoFlags.NONE, null);
+        if (!info.get_attribute_boolean('access::can-write'))
+            return true;
+    } catch (e) {
+        // Ignored
+    }
+    try {
+        const f = Gio.File.new_for_path(BATTERY_CARE_LIMIT);
         const info = f.query_info('access::*', Gio.FileQueryInfoFlags.NONE, null);
         if (!info.get_attribute_boolean('access::can-write'))
             return true;
@@ -165,7 +209,8 @@ function checkInCompatibility() {
         return 1;
 
     if (!fileExists(END_THRESHOLD_DEVICE_PATH))
-        return 2;
+        if(!fileExists(BATTERY_CARE_LIMIT))
+            return 2;
 
     if (checkAuthRequired()) {
         ExtensionUtils.getSettings().set_boolean('install-service', false);
@@ -191,7 +236,10 @@ function runInstaller() {
     let chmodCmd = 'chmod 644 /etc/systemd/system/mani-battery-health-charging.service';
     let sysCtlEnableCmd = 'systemctl enable mani-battery-health-charging.service';
     let sysCtlStartCmd = 'systemctl start mani-battery-health-charging.service';
-    if (isChargeStartThresholdSupported()) {
+    if (isBatteryCareLimitSupported()){
+        copyCmd = `cp -f ${Me.dir.get_child('resources').get_child('mani-battery-health-charging-2').get_path()
+        } /etc/systemd/system/mani-battery-health-charging.service`;
+    }else if (isChargeStartThresholdSupported()) {
         copyCmd = `cp -f ${Me.dir.get_child('resources').get_child('mani-battery-health-charging-1').get_path()
         } /etc/systemd/system/mani-battery-health-charging.service`;
     } else {

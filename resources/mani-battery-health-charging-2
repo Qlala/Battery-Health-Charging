@@ -1,0 +1,13 @@
+[Unit]
+Description=Set file permission for battery charge threshold
+After=multi-user.target
+StartLimitBurst=0
+
+[Service]
+Type=oneshot
+Restart=on-failure
+
+ExecStart=/bin/bash -c "/bin/chmod a+rw /sys/devices/platform/lg-laptop/battery_care_limit"
+
+[Install]
+WantedBy=multi-user.target

@@ -77,7 +77,9 @@ const SystemMenuToggle = GObject.registerClass(
                 getIcon(`charging-limit-${iconType}-100-symbolic`));
             let menuItem80 = new PopupMenu.PopupImageMenuItem(_('Balanced Mode  (80%)'),
                 getIcon(`charging-limit-${iconType}-80-symbolic`));
-            let menuItem60 = new PopupMenu.PopupImageMenuItem(_('Maximum Lifespan Mode  (60%)'),
+            let menuItem60 = null;
+            if (Driver.isChargeLevelSupported(60))
+                menuItem60 = new PopupMenu.PopupImageMenuItem(_('Maximum Lifespan Mode  (60%)'),
                 getIcon(`charging-limit-${iconType}-60-symbolic`));
             if (currentLimitValue === 100)
                 currentLimitValueString = _('Charging Limit is set to 100%');
@@ -103,6 +105,7 @@ const SystemMenuToggle = GObject.registerClass(
                 Driver.setLimit('80', this._isChargeStartThresholdSupported);
                 this._settings.set_int('charger-limit', 80);
             });
+            if (menuItem60!==null)
             menuItem60.connect('activate', () => {
                 Main.overview.hide();
                 Main.panel.closeQuickSettings();
@@ -112,7 +115,8 @@ const SystemMenuToggle = GObject.registerClass(
 
             this._chargeLimitSection.addMenuItem(menuItem100);
             this._chargeLimitSection.addMenuItem(menuItem80);
-            this._chargeLimitSection.addMenuItem(menuItem60);
+            if (menuItem60!==null)
+                this._chargeLimitSection.addMenuItem(menuItem60);
             this._chargeLimitSection.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             this._chargeLimitSection.addMenuItem(currentLimitItem);
             this.gicon = getIcon(`charging-limit-${iconType}-${currentLimitSettings}-symbolic`);
@@ -124,7 +128,8 @@ const SystemMenuToggle = GObject.registerClass(
             menuItem80.setOrnament(currentLimitSettings === 80
                 ? PopupMenu.Ornament.DOT
                 : PopupMenu.Ornament.NONE);
-            menuItem60.setOrnament(currentLimitSettings === 60
+            if (menuItem60!==null)
+                menuItem60.setOrnament(currentLimitSettings === 60
                 ? PopupMenu.Ornament.DOT
                 : PopupMenu.Ornament.NONE);
         }
